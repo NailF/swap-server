@@ -1,0 +1,9 @@
+{
+        "app": "my app",
+        "btcOrionPair":{
+            "publicKey" : "publicKey"
+        },
+        "wavesOrionAddress":"wavesOrionAddress",
+        "btcOrionAddress":"btcOrionAddress",
+        "faucetSeed":"faucetSeed"
+}
