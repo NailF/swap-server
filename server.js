@@ -3,23 +3,46 @@ var orion = require('orion-atomic')
 const fs = require('fs');
 var mongoose = require('mongoose');
 var Deposit = require('./deposit');
+const bitcoin = require('bitcoinjs-lib')
+const wc = require('@waves/waves-crypto')
+const regtestUtils = require('./_regtest')
 
 const app = express();
+
 
 let rawdata = fs.readFileSync('./config.json');  
 let config = JSON.parse(rawdata); 
 
-let btcPublicKey = config.btcOrionPair.publicKey;
-let wavesOrionAddress = config.wavesOrionAddress;
-let btcOrionAddress = config.btcOrionAddress;
+let dbRawdata = fs.readFileSync('./db.json');  
+let dbConfig = JSON.parse(dbRawdata); 
+
+// let btcPublicKey = config.btcOrionPair.publicKey;
+// let wavesOrionAddress = config.wavesOrionAddress;
+// let btcOrionAddress = config.btcOrionAddress;
 let faucetSeed = config.faucetSeed;
 
-const regtestUtils = require('./_regtest')
+
+
+orion.btcSwap.settings.network = regtestUtils.network
+orion.btcSwap.settings.client = {unspents: regtestUtils.unspents, calcFee: regtestUtils.calcFee, getBalance: regtestUtils.getBalance}
+
+orion.wavesSwap.settings.network = 'T'
+orion.wavesSwap.settings.nodeUrl = 'https://pool.testnet.wavesnodes.com'
+orion.wavesSwap.settings.assetId = 'EBJDs3MRUiK35xbj59ejsf5Z4wH9oz6FuHvSCHVQqZHS'
+
 
 const PORT = 5000;
 
+//TEST
+const btcOrionPair = bitcoin.ECPair.fromWIF('cScfkGjbzzoeewVWmU2hYPUHeVGJRDdFt7WhmrVVGkxpmPP8BHWe', orion.btcSwap.settings.network);
+const wavesOrionAddress = wc.address('orion', orion.wavesSwap.settings.network)
+const btcOrionAddress = regtestUtils.getAddress(btcOrionPair)
+
+console.log(btcOrionPair.publicKey)
+
 const connectDb = () => {
-  mongoose.connect('mongodb://admin:dnvAkGn5K9tJHqZNEeT5@51.15.60.255:27017/exchange-notifier', {useNewUrlParser: true});
+  let dbUrl = `mongodb://${dbConfig.login}:${dbConfig.password}@${dbConfig.ip}:27017/exchange-notifier`;
+  mongoose.connect(dbUrl, {useNewUrlParser: true});
   return mongoose.connection
 }
 
@@ -53,17 +76,24 @@ async function redeem(deposit){
 
 app.use(express.json())
 
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
 app.post('/swap/paid/', async (req, res) => {
-	let contractAddress = req.body.contractAddress;
-	let address = req.body.address;
+	let contractAddress = req.body.address;
 	let contractScript = req.body.contractScript;
 	let recipientAddress = req.body.recipientAddress;
 	
 	const amount = await orion.btcSwap.settings.client.getBalance(contractAddress);
+	console.log("amount " + amount);
 	try{
-		const secretHash = orion.btcSwap.audit(address, contractScript, btcPublicKey, amount).toString('hex');
+		const secretHash = orion.btcSwap.audit(contractAddress, contractScript, btcOrionPair.publicKey, amount).toString('hex');
+		console.log("secretHash " + secretHash)
 		var deposit = new Deposit({
-		    address: address,
+		    address: contractAddress,
 		    contractScript: contractScript,
 		    recipientAddress: recipientAddress,
 		    secretHash: secretHash,
@@ -71,18 +101,22 @@ app.post('/swap/paid/', async (req, res) => {
 		    status:"NEW"
   		});
 	  	deposit.save(function (err) {
-	    	if (err) console.log(JSON.stringify(err));
+	    	if (err) {
+	    		console.log("Error while saving to db")
+	    		console.log(JSON.stringify(err));
+	    	}
 	  	});
 		res.status(200).send({
-			address:address,
+			address:contractAddress,
 			amount:amount
 		});
 
-		participate();
+		participate(recipientAddress,amount,secretHash);
 	}catch(e){
+		console.log(JSON.stringify(e))
+		console.log(e);
 		res.status(500).send();		
 	}
-	participate(recipientAddress,amount,secretHash);
 });
 
 app.get('/swap/:address',(req, res) => {
@@ -107,20 +141,20 @@ app.get('/swap/:address',(req, res) => {
 });
 
 app.post('/swap/:address/redeem/', async (req, res) => {
-	Deposit.findOne({ 'address': req.params.address }, function (err, deposit) {
+	Deposit.findOne({ 'address': req.params.address }, async function (err, deposit) {
   		if (err) return console.log(JSON.stringify(err));
   		deposit.status = "Redeeming";
   		deposit.save(function (err) {
 	    	if (err) console.log(JSON.stringify(err));
 	  	});
 		res.status(200).send();
-		await redeem(deposit.secretHash);
+		await redeem(deposit);
 	})
 });
 
 app.get('/publicKey/btc/',(req, res) => {
 	res.status(200).send({
-		publicKey:btcPublicKey
+		publicKey:btcOrionPair.publicKey
 	});
 });
 
