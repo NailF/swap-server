@@ -38,10 +38,10 @@ const btcOrionPair = bitcoin.ECPair.fromWIF('cScfkGjbzzoeewVWmU2hYPUHeVGJRDdFt7W
 const wavesOrionAddress = wc.address('orion', orion.wavesSwap.settings.network)
 const btcOrionAddress = regtestUtils.getAddress(btcOrionPair)
 
-console.log(btcOrionPair.publicKey)
+console.log(btcOrionPair.publicKey.toString('hex'))
 
 const connectDb = () => {
-  let dbUrl = `mongodb://${dbConfig.login}:${dbConfig.password}@${dbConfig.ip}:27017/exchange-notifier`;
+  let dbUrl = `mongodb://${dbConfig.login}:${dbConfig.password}@${dbConfig.ip}:27017/${dbConfig.dbName}`;
   mongoose.connect(dbUrl, {useNewUrlParser: true});
   return mongoose.connection
 }
@@ -53,7 +53,12 @@ const startServer = () =>{
 }
 
 async function participate(recipientAddress,amount,secretHash,deposit) {
-	const respContract = await orion.wavesSwap.initiate(wavesOrionAddress, recipientAddress, faucetSeed, secretHash);
+	try {
+        const respContract = await orion.wavesSwap.initiate(wavesOrionAddress, recipientAddress, faucetSeed, secretHash);
+    } catch (e) {
+        console.log(e);
+        throw e;
+    }
 	
 	await orion.wavesSwap.payToAddress(respContract.address, amount, faucetSeed);
 
@@ -62,7 +67,8 @@ async function participate(recipientAddress,amount,secretHash,deposit) {
 	deposit.save(function (err) {
 	    if (err) console.log(JSON.stringify(err));
 	});
-		
+
+	return true
 }
 
 async function redeem(deposit){
@@ -84,17 +90,17 @@ app.use(function(req, res, next) {
 
 app.post('/swap/paid/', async (req, res) => {
 	let contractAddress = req.body.address;
-	let contractScript = req.body.contractScript;
+	let contractScript = Buffer.from(req.body.contractScript, 'hex');
 	let recipientAddress = req.body.recipientAddress;
 	
 	const amount = await orion.btcSwap.settings.client.getBalance(contractAddress);
 	console.log("amount " + amount);
 	try{
-		const secretHash = orion.btcSwap.audit(contractAddress, contractScript, btcOrionPair.publicKey, amount).toString('hex');
+		const secretHash = await orion.btcSwap.audit(contractAddress, contractScript, btcOrionPair.publicKey, amount);
 		console.log("secretHash " + secretHash)
 		var deposit = new Deposit({
 		    address: contractAddress,
-		    contractScript: contractScript,
+		    contractScript: contractScript.toString('hex'),
 		    recipientAddress: recipientAddress,
 		    secretHash: secretHash,
 		    amount:amount,
@@ -152,9 +158,9 @@ app.post('/swap/:address/redeem/', async (req, res) => {
 	})
 });
 
-app.get('/publicKey/btc/',(req, res) => {
+app.get('/publicKey/btc',(req, res) => {
 	res.status(200).send({
-		publicKey:btcOrionPair.publicKey
+		publicKey: btcOrionPair.publicKey.toString('hex')
 	});
 });
 

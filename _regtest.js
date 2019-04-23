@@ -94,7 +94,12 @@ class CloudClient {
     }
 }
 
-const client = new CloudClient()
+const client = new Client({
+    network: 'regtest',
+    username: 'user',
+    password: 'pass',
+    port: 18443
+})
 
 async function broadcast (txHex) {
     return client.sendRawTransaction(txHex)
