@@ -52,17 +52,15 @@ const startServer = () =>{
 });
 }
 
-async function participate(recipientAddress,amount,secretHash,deposit) {
+async function participate(recipientAddress, amount, secretHash,deposit) {
 	try {
         const respContract = await orion.wavesSwap.initiate(wavesOrionAddress, recipientAddress, faucetSeed, secretHash);
+		await orion.wavesSwap.payToAddress(respContract.address, amount*1e8, config.wavesOrionSeed);
+		deposit.respContract = respContract;
     } catch (e) {
         console.log(e);
         throw e;
     }
-	
-	await orion.wavesSwap.payToAddress(respContract.address, amount, faucetSeed);
-
-	deposit.respContract = respContract;
 
 	deposit.save(function (err) {
 	    if (err) console.log(JSON.stringify(err));
@@ -117,7 +115,7 @@ app.post('/swap/paid/', async (req, res) => {
 			amount:amount
 		});
 
-		participate(recipientAddress,amount,secretHash);
+		participate(recipientAddress, amount, secretHash, deposit);
 	}catch(e){
 		console.log(JSON.stringify(e))
 		console.log(e);
