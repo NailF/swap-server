@@ -127,13 +127,13 @@ app.get('/swap/:address',(req, res) => {
 	Deposit.findOne({ 'address': req.params.address }, function (err, deposit) {
   		if (err) return console.log(JSON.stringify(err));
   		
-		if(deposit.respContract){
+		if(!deposit.respContract.$isEmpty()){
 			res.status(200).send({
 				address:deposit.address,
 		   		status: 'ready',
 		   		respContract:{
-		   			address:deposit.respContract.address,
-		   			publicKey:deposit.respContract.publicKey
+		   			address: deposit.respContract.address,
+		   			publicKey: deposit.respContract.publicKey
 		   		}
 		   	});
 		}else{

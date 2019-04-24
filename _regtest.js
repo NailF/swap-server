@@ -98,6 +98,7 @@ const client = new Client({
     network: 'regtest',
     username: 'user',
     password: 'pass',
+    host: 'demo.orionprotocol.io',
     port: 18443
 })
 
