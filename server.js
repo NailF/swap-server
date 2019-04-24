@@ -72,8 +72,8 @@ async function participate(recipientAddress, amount, secretHash,deposit) {
 async function redeem(deposit){
 	const watchedTx = await orion.wavesSwap.watchRedeemTx(deposit.respContract.address);
 	const secretFromTx = Buffer.from(wc.base58decode(watchedTx.proofs[0]));
-	const reedemBtcContract = new orion.types.Contract(null, deposit.address, deposit.contractScript, secretFromTx);
-	const btcRedeemTx = await orion.btcSwap.redeem(reedemBtcContract, btcOrionAddress, config.btcOrionPair);
+	const reedemBtcContract = new orion.types.Contract(null, deposit.address, Buffer.from(deposit.contractScript, 'hex'), secretFromTx);
+	const btcRedeemTx = await orion.btcSwap.redeem(reedemBtcContract, btcOrionAddress, btcOrionPair);
 
 	await regtestUtils.broadcast(btcRedeemTx.toHex())
 }
@@ -152,7 +152,7 @@ app.post('/swap/:address/redeem/', async (req, res) => {
 	    	if (err) console.log(JSON.stringify(err));
 	  	});
 		res.status(200).send();
-		await redeem(deposit);
+		redeem(deposit);
 	})
 });
 
